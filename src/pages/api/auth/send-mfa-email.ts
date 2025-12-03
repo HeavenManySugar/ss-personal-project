@@ -153,7 +153,7 @@ This is an automated email. Please do not reply.
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        from: `Your App <${fromEmail}>`,
+        from: `${(locals.runtime.env.APP_NAME as string) || 'Your App Name'} <${fromEmail}>`,
         to: [user.email],
         subject: 'Your Login Verification Code',
         text: emailText,

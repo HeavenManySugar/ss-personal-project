@@ -28,183 +28,315 @@ if (!session) {
     <BaseHead title={`Dashboard - ${SITE_TITLE}`} description="User Dashboard" />
     <style>
       .dashboard {
-        max-width: 800px;
-        margin: 2rem auto;
-        padding: 2rem;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
       }
-      .welcome {
+      .welcome-banner {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 2rem;
-        border-radius: 8px;
+        padding: 2.5rem 2rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 2rem;
+        box-shadow: var(--box-shadow-lg);
+      }
+      .welcome-banner h1 {
+        margin: 0 0 0.5rem 0;
+        font-size: 2rem;
+        color: white;
+      }
+      .welcome-banner p {
+        margin: 0;
+        opacity: 0.95;
+        font-size: 1.125rem;
+      }
+      .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
         margin-bottom: 2rem;
       }
       .card {
         background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        margin-bottom: 1.5rem;
+        padding: 2rem;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+        border: 1px solid rgb(var(--gray-light));
+        transition: var(--transition);
+      }
+      .card:hover {
+        box-shadow: var(--box-shadow-lg);
       }
       .card h2 {
-        margin-top: 0;
-        color: #333;
+        margin: 0 0 1.5rem 0;
+        color: rgb(var(--gray-dark));
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
       }
-      .info-grid {
-        display: grid;
-        grid-template-columns: 150px 1fr;
-        gap: 1rem;
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.875rem 0;
+        border-bottom: 1px solid rgb(var(--gray-light));
+      }
+      .info-row:last-child {
+        border-bottom: none;
       }
       .info-label {
-        font-weight: bold;
-        color: #666;
+        font-weight: 600;
+        color: rgb(var(--gray));
+        font-size: 0.938rem;
+      }
+      .info-value {
+        color: rgb(var(--gray-dark));
+        font-weight: 500;
       }
       .btn {
-        padding: 0.75rem 1.5rem;
+        padding: 0.875rem 1.5rem;
         border: none;
-        border-radius: 4px;
-        font-weight: bold;
+        border-radius: 8px;
+        font-weight: 600;
         cursor: pointer;
-        margin-right: 1rem;
-        transition: all 0.3s;
+        font-size: 1rem;
+        transition: var(--transition);
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
       }
       .btn-primary {
-        background: #4CAF50;
+        background: var(--success);
         color: white;
       }
       .btn-primary:hover {
-        background: #45a049;
+        background: #28a745;
+        transform: translateY(-1px);
+        box-shadow: var(--box-shadow);
       }
       .btn-danger {
-        background: #f44336;
+        background: var(--error);
         color: white;
       }
       .btn-danger:hover {
-        background: #da190b;
+        background: #e32b1f;
+        transform: translateY(-1px);
+        box-shadow: var(--box-shadow);
       }
       .btn-secondary {
-        background: #2196F3;
+        background: var(--accent);
         color: white;
       }
       .btn-secondary:hover {
-        background: #0b7dda;
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+        box-shadow: var(--box-shadow);
       }
-      .mfa-status {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 12px;
+      .mfa-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.875rem;
+        border-radius: 20px;
         font-size: 0.875rem;
-        font-weight: bold;
+        font-weight: 600;
       }
       .mfa-enabled {
-        background: #c8e6c9;
-        color: #2e7d32;
+        background: rgba(52, 199, 89, 0.15);
+        color: var(--success);
       }
       .mfa-disabled {
-        background: #ffccbc;
-        color: #d84315;
+        background: rgba(255, 149, 0, 0.15);
+        color: var(--warning);
       }
-      .qr-code {
+      .qr-section {
         text-align: center;
-        padding: 1rem;
-      }
-      .qr-code img {
-        max-width: 200px;
-        border: 2px solid #ddd;
+        padding: 2rem 1rem;
+        background: rgb(var(--gray-light));
         border-radius: 8px;
+        margin: 1.5rem 0;
+      }
+      .qr-section img {
+        max-width: 240px;
+        border: 3px solid white;
+        border-radius: var(--border-radius);
+        box-shadow: var(--box-shadow);
+      }
+      .qr-manual {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 0.875rem;
+        word-break: break-all;
       }
       .message {
-        padding: 1rem;
-        margin-bottom: 1rem;
-        border-radius: 4px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        border-radius: 8px;
         display: none;
+        font-size: 0.938rem;
       }
-      .message.error { background: #ffebee; color: #c62828; }
-      .message.success { background: #e8f5e9; color: #2e7d32; }
+      .message.error {
+        background: rgba(255, 59, 48, 0.1);
+        color: var(--error);
+        border: 1px solid rgba(255, 59, 48, 0.2);
+      }
+      .message.success {
+        background: rgba(52, 199, 89, 0.1);
+        color: var(--success);
+        border: 1px solid rgba(52, 199, 89, 0.2);
+      }
       .message.show { display: block; }
       #mfaSetup { display: none; }
+      .mfa-instructions {
+        background: rgb(var(--gray-light));
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin: 1.5rem 0;
+      }
+      .mfa-instructions ol {
+        margin: 0.5rem 0 0 1.25rem;
+        padding: 0;
+      }
+      .mfa-instructions li {
+        margin: 0.5rem 0;
+        line-height: 1.6;
+      }
+      .code-input-group {
+        max-width: 300px;
+        margin: 1.5rem auto;
+      }
+      .code-input-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+        font-size: 0.938rem;
+        text-align: center;
+      }
+      .code-input-group input {
+        width: 100%;
+        padding: 1rem;
+        text-align: center;
+        font-size: 1.75rem;
+        letter-spacing: 0.5rem;
+        border: 2px solid rgb(var(--gray-light));
+        border-radius: 8px;
+        font-family: monospace;
+        box-sizing: border-box;
+      }
+      .code-input-group input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+      }
+      .action-buttons {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
     </style>
   </head>
   <body>
     <Header />
     <main>
       <div class="dashboard">
-        <div class="welcome">
-          <h1>Welcome, {session.username}! 👋</h1>
-          <p>You are securely logged into your account.</p>
+        <div class="welcome-banner">
+          <h1>Welcome back, {session.username}!</h1>
+          <p>Manage your account security and settings</p>
         </div>
 
         <div id="message" class="message"></div>
 
-        <div class="card">
-          <h2>Account Information</h2>
-          <div class="info-grid">
-            <div class="info-label">Username:</div>
-            <div>{session.username}</div>
-            <div class="info-label">Email:</div>
-            <div>{session.email}</div>
-            <div class="info-label">MFA Status:</div>
+        <div class="dashboard-grid">
+          <div class="card">
+            <h2>👤 Account Details</h2>
             <div>
+              <div class="info-row">
+                <span class="info-label">Username</span>
+                <span class="info-value">{session.username}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Email</span>
+                <span class="info-value">{session.email}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">2FA Status</span>
+                <span class="info-value">
+                  {session.mfaEnabled ? (
+                    <span class="mfa-badge mfa-enabled">
+                      <span>✓</span>
+                      <span>Enabled</span>
+                    </span>
+                  ) : (
+                    <span class="mfa-badge mfa-disabled">
+                      <span>⚠</span>
+                      <span>Disabled</span>
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>🔐 Quick Actions</h2>
+            <div class="action-buttons">
               {session.mfaEnabled ? (
-                <span class="mfa-status mfa-enabled">✓ Enabled</span>
+                <button class="btn btn-danger" id="disableMfaBtn">
+                  <span>Disable 2FA</span>
+                </button>
               ) : (
-                <span class="mfa-status mfa-disabled">✗ Disabled</span>
+                <button class="btn btn-primary" id="enableMfaBtn">
+                  <span>Enable 2FA</span>
+                </button>
               )}
+              <button class="btn btn-secondary" id="logoutBtn">
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
         </div>
 
-        <div class="card">
-          <h2>🔐 Two-Factor Authentication (MFA)</h2>
-          <p>
-            Add an extra layer of security to your account by enabling MFA. 
-            You'll need to enter a code from your authenticator app when logging in.
+        <div class="card" style="grid-column: 1 / -1;">
+          <h2>📱 Two-Factor Authentication</h2>
+          <p style="color: rgb(var(--gray)); margin-bottom: 1rem;">
+            Protect your account with an extra layer of security. When enabled, you'll need 
+            to enter a code from your authenticator app each time you sign in.
           </p>
-          
-          {session.mfaEnabled ? (
-            <button class="btn btn-danger" id="disableMfaBtn">Disable MFA</button>
-          ) : (
-            <button class="btn btn-primary" id="enableMfaBtn">Enable MFA</button>
-          )}
 
           <div id="mfaSetup">
-            <hr style="margin: 1.5rem 0;" />
-            <h3>Setup Instructions</h3>
-            <ol>
-              <li>Install Google Authenticator or similar app</li>
-              <li>Scan the QR code below</li>
-              <li>Enter the 6-digit code to verify</li>
-            </ol>
-            <div class="qr-code" id="qrCodeContainer"></div>
-            <div class="form-group" style="max-width: 300px; margin: 1rem auto;">
-              <label for="mfaCode">Enter verification code:</label>
+            <div class="mfa-instructions">
+              <h3 style="margin-top: 0; font-size: 1.125rem;">Setup Instructions</h3>
+              <ol>
+                <li>Download an authenticator app (Google Authenticator, Authy, 1Password, etc.)</li>
+                <li>Scan the QR code below with your app</li>
+                <li>Enter the 6-digit verification code to complete setup</li>
+              </ol>
+            </div>
+            
+            <div class="qr-section" id="qrCodeContainer"></div>
+            
+            <div class="code-input-group">
+              <label for="mfaCode">Verification Code</label>
               <input 
                 type="text" 
                 id="mfaCode" 
                 maxlength="6"
                 pattern="\d{6}"
-                style="width: 100%; padding: 0.75rem; text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem;"
+                placeholder="000000"
+                inputmode="numeric"
               />
             </div>
-            <button class="btn btn-secondary" id="verifyMfaBtn">Verify & Enable</button>
+            
+            <div style="text-align: center;">
+              <button class="btn btn-primary" id="verifyMfaBtn">
+                <span>Verify & Enable 2FA</span>
+              </button>
+            </div>
           </div>
-        </div>
-
-        <div class="card">
-          <h2>Session Management</h2>
-          <button class="btn btn-danger" id="logoutBtn">Logout</button>
-        </div>
-
-        <div class="card" style="background: #fff3cd;">
-          <h2>🛡️ Security Features Demonstrated</h2>
-          <ul>
-            <li><strong>XSS Prevention:</strong> All user inputs are sanitized and escaped</li>
-            <li><strong>SQL Injection Prevention:</strong> Prepared statements used for all queries</li>
-            <li><strong>Password Security:</strong> PBKDF2 hashing with 100,000 iterations</li>
-            <li><strong>Session Security:</strong> HttpOnly, Secure cookies with CSRF protection</li>
-            <li><strong>MFA Support:</strong> TOTP-based two-factor authentication</li>
-            <li><strong>Rate Limiting:</strong> Account locking after failed login attempts</li>
-          </ul>
         </div>
       </div>
     </main>
