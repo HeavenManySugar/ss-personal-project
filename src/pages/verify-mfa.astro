@@ -60,17 +60,16 @@ import { SITE_TITLE } from '../consts';
           <p>Enter the 6-digit code from your authenticator app.</p>
         </div>
         <div id="message" class="message"></div>
-        <form id="mfaForm">
+        <form id="mfaForm" novalidate>
           <div class="form-group">
             <label for="code">Authentication Code</label>
             <input 
               type="text" 
               id="code" 
-              required 
               maxlength="6"
-              pattern="\d{6}"
               inputmode="numeric"
               autocomplete="one-time-code"
+              placeholder="000000"
             />
           </div>
           <button type="submit" class="btn" id="submitBtn">Verify</button>
