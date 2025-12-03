@@ -120,21 +120,27 @@ export function getSessionFromCookie(request: Request): string | null {
 /**
  * Create a secure session cookie
  */
-export function createSessionCookie(sessionId: string): string {
+export function createSessionCookie(sessionId: string, isDev = false): string {
   const expires = new Date(Date.now() + SESSION_DURATION);
   
   // Security flags:
   // - HttpOnly: Prevents JavaScript access (XSS protection)
-  // - Secure: Only sent over HTTPS
+  // - Secure: Only sent over HTTPS (omit in development)
   // - SameSite=Strict: CSRF protection
-  return [
+  const parts = [
     `session=${sessionId}`,
     `Path=/`,
     `Expires=${expires.toUTCString()}`,
     `HttpOnly`,
-    `Secure`,
     `SameSite=Strict`
-  ].join('; ');
+  ];
+  
+  // Only add Secure flag in production
+  if (!isDev) {
+    parts.push('Secure');
+  }
+  
+  return parts.join('; ');
 }
 
 /**

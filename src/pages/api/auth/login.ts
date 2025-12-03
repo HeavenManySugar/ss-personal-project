@@ -219,6 +219,10 @@ export const POST: APIRoute = async ({ request, locals }) => {
     
     await logLoginAttempt(db, username, ipAddress, true, 'Login successful');
     
+    // Detect development environment
+    const url = new URL(request.url);
+    const isDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    
     return new Response(
       JSON.stringify({
         success: true,
@@ -230,7 +234,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: {
           'Content-Type': 'application/json',
           ...getSecurityHeaders(),
-          'Set-Cookie': createSessionCookie(sessionId)
+          'Set-Cookie': createSessionCookie(sessionId, isDev)
         }
       }
     );

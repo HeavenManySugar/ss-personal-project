@@ -256,9 +256,9 @@ export async function linkOAuthAccount(
      ON CONFLICT(provider_id, provider_user_id) 
      DO UPDATE SET access_token = ?, refresh_token = ?, token_expires_at = ?, updated_at = CURRENT_TIMESTAMP`
   ).bind(
-    userId, providerId, providerUserId, userInfo.email, userInfo.username,
-    accessToken, refreshToken, expiresAt,
-    accessToken, refreshToken, expiresAt
+    userId, providerId, providerUserId, userInfo.email || null, userInfo.username || null,
+    accessToken, refreshToken || null, expiresAt,
+    accessToken, refreshToken || null, expiresAt
   ).run();
 }
 

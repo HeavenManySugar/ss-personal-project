@@ -13,12 +13,18 @@ import { getUserOAuthAccounts } from '../lib/oauth';
 const db = Astro.locals.runtime.env.DB as D1Database;
 const sessionId = getSessionFromCookie(Astro.request);
 
+console.log('[Dashboard] Session ID from cookie:', sessionId ? 'present' : 'missing');
+
 if (!sessionId) {
+  console.log('[Dashboard] No session ID, redirecting to login');
   return Astro.redirect('/login');
 }
 
 const session = await validateSession(db, sessionId);
+console.log('[Dashboard] Session validation result:', session ? 'valid' : 'invalid');
+
 if (!session) {
+  console.log('[Dashboard] Invalid session, redirecting to login');
   return Astro.redirect('/login');
 }
 

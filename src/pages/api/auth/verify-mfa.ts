@@ -172,7 +172,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
         headers: {
           'Content-Type': 'application/json',
           ...getSecurityHeaders(),
-          'Set-Cookie': createSessionCookie(sessionId)
+          'Set-Cookie': createSessionCookie(sessionId, request.url.includes('localhost') || request.url.includes('127.0.0.1'))
         }
       }
     );

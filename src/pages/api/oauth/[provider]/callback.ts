@@ -22,11 +22,11 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
 
   // Check for OAuth errors
   if (error) {
-    return Response.redirect(`/login?error=${encodeURIComponent(error)}`, 302);
+    return Response.redirect(`${url.origin}/login?error=${encodeURIComponent(error)}`, 302);
   }
 
   if (!code || !state) {
-    return Response.redirect('/login?error=missing_parameters', 302);
+    return Response.redirect(`${url.origin}/login?error=missing_parameters`, 302);
   }
 
   try {
@@ -35,18 +35,18 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
     // Validate state token
     const stateRecord = await validateOAuthState(db, state);
     if (!stateRecord) {
-      return Response.redirect('/login?error=invalid_state', 302);
+      return Response.redirect(`${url.origin}/login?error=invalid_state`, 302);
     }
 
     // Get provider configuration
     const oauthProvider = await getProviderById(db, stateRecord.provider_id);
     if (!oauthProvider) {
-      return Response.redirect('/login?error=provider_not_found', 302);
+      return Response.redirect(`${url.origin}/login?error=provider_not_found`, 302);
     }
 
     // Verify provider name matches
     if (oauthProvider.name !== provider) {
-      return Response.redirect('/login?error=provider_mismatch', 302);
+      return Response.redirect(`${url.origin}/login?error=provider_mismatch`, 302);
     }
 
     // Exchange code for access token
@@ -57,7 +57,7 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
     const userInfo = await fetchUserInfo(oauthProvider, tokenData.access_token);
 
     if (!userInfo.id) {
-      return Response.redirect('/login?error=no_user_id', 302);
+      return Response.redirect(`${url.origin}/login?error=no_user_id`, 302);
     }
 
     // Find existing user by OAuth account
@@ -121,7 +121,7 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
         }
       } else {
         // No email provided by OAuth provider
-        return Response.redirect('/login?error=no_email', 302);
+        return Response.redirect(`${url.origin}/login?error=no_email`, 302);
       }
     }
 
@@ -131,7 +131,7 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
     ).bind(userId).first<User>();
 
     if (!user) {
-      return Response.redirect('/login?error=user_not_found', 302);
+      return Response.redirect(`${url.origin}/login?error=user_not_found`, 302);
     }
 
     // Create a mock request for session creation
@@ -145,28 +145,75 @@ export const GET: APIRoute = async ({ params, url, locals, cookies }) => {
     // Create session
     const { sessionId, csrfToken } = await createSession(db, user, request);
 
-    // Set session cookie
-    cookies.set('sessionId', sessionId, {
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
+    // Verify session was created before redirecting
+    const verifySession = await db.prepare(
+      'SELECT id FROM sessions WHERE id = ?'
+    ).bind(sessionId).first();
 
-    cookies.set('csrfToken', csrfToken, {
-      path: '/',
-      httpOnly: false,
-      secure: true,
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60,
-    });
+    if (!verifySession) {
+      console.error('Session creation failed - session not found after insert');
+      return Response.redirect(`${url.origin}/login?error=session_failed`, 302);
+    }
 
-    // Redirect to dashboard
-    return Response.redirect('/dashboard', 302);
+    // Set session cookie using the same format as regular login
+    const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    // Detect if we're in development (localhost)
+    const isDev = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    
+    // Create headers with multiple Set-Cookie entries
+    const headers = new Headers();
+    headers.append('Content-Type', 'text/html; charset=utf-8');
+    
+    // Build session cookie - omit Secure flag in development
+    const sessionCookieParts = [
+      `session=${sessionId}`,
+      `Path=/`,
+      `Expires=${expires.toUTCString()}`,
+      `HttpOnly`,
+      `SameSite=Strict`
+    ];
+    if (!isDev) {
+      sessionCookieParts.push('Secure');
+    }
+    headers.append('Set-Cookie', sessionCookieParts.join('; '));
+    
+    // Build CSRF cookie - omit Secure flag in development
+    const csrfCookieParts = [
+      `csrfToken=${csrfToken}`,
+      `Path=/`,
+      `Expires=${expires.toUTCString()}`,
+      `SameSite=Strict`
+    ];
+    if (!isDev) {
+      csrfCookieParts.push('Secure');
+    }
+    headers.append('Set-Cookie', csrfCookieParts.join('; '));
+
+    // Use HTML page with client-side redirect to ensure cookies are set before navigation
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Login Successful</title>
+</head>
+<body>
+  <p>Login successful. Redirecting...</p>
+  <script>
+    // Small delay to ensure cookies are set, then redirect
+    setTimeout(function() {
+      window.location.replace('${url.origin}/dashboard');
+    }, 100);
+  </script>
+</body>
+</html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers
+    });
 
   } catch (error) {
     console.error('OAuth callback error:', error);
-    return Response.redirect('/login?error=oauth_failed', 302);
+    return Response.redirect(`${url.origin}/login?error=oauth_failed`, 302);
   }
 };

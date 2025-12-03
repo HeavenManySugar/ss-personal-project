@@ -7,14 +7,19 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
 import { getEnabledProviders } from '../lib/oauth';
+import { getSessionFromCookie, validateSession } from '../lib/session';
 
-const sessionCookie = Astro.cookies.get('session');
-if (sessionCookie) {
-  return Astro.redirect('/dashboard');
+// Check if user is already logged in with valid session
+const db = Astro.locals.runtime.env.DB as D1Database;
+const sessionId = getSessionFromCookie(Astro.request);
+if (sessionId) {
+  const session = await validateSession(db, sessionId);
+  if (session) {
+    return Astro.redirect('/dashboard');
+  }
 }
 
 // Get enabled OAuth providers
-const db = Astro.locals.runtime.env.DB as D1Database;
 const oauthProviders = await getEnabledProviders(db);
 ---
 
@@ -233,16 +238,31 @@ const oauthProviders = await getEnabledProviders(db);
     <Footer />
 
     <script>
-      const form = document.getElementById('loginForm') as HTMLFormElement;
-      const messageDiv = document.getElementById('message') as HTMLDivElement;
-      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
-
-      function showMessage(text: string, type: 'error' | 'success') {
-        messageDiv.textContent = text;
-        messageDiv.className = `message ${type} show`;
+      // Check if user is already logged in (for OAuth callback timing issues)
+      function checkSession() {
+        const cookies = document.cookie.split(';').map(c => c.trim());
+        const hasSession = cookies.some(c => c.startsWith('session='));
+        if (hasSession) {
+          // Redirect to dashboard if session cookie exists
+          window.location.replace('/dashboard');
+          return true;
+        }
+        return false;
       }
+      
+      // Check on page load - if session exists, redirect immediately
+      if (!checkSession()) {
+        // Only setup form if not redirecting
+        const form = document.getElementById('loginForm') as HTMLFormElement;
+        const messageDiv = document.getElementById('message') as HTMLDivElement;
+        const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
 
-      form.addEventListener('submit', async (e) => {
+        function showMessage(text: string, type: 'error' | 'success') {
+          messageDiv.textContent = text;
+          messageDiv.className = `message ${type} show`;
+        }
+
+        form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const username = (document.getElementById('username') as HTMLInputElement).value;
         const password = (document.getElementById('password') as HTMLInputElement).value;
@@ -277,6 +297,7 @@ const oauthProviders = await getEnabledProviders(db);
           submitBtn.textContent = 'Login';
         }
       });
+      } // End of if (!checkSession())
     </script>
   </body>
 </html>
