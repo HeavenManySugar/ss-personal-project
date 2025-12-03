@@ -95,9 +95,25 @@ import { SITE_TITLE } from '../consts';
         messageDiv.className = `message ${type} show`;
       }
 
+      // Enable/disable submit button based on input
+      function validateInput() {
+        const code = codeInput.value.trim();
+        submitBtn.disabled = code.length !== 6 || !/^\d{6}$/.test(code);
+      }
+
+      // Initial state
+      validateInput();
+
+      // Validate on input
+      codeInput.addEventListener('input', () => {
+        // Auto-format: only allow digits
+        codeInput.value = codeInput.value.replace(/\D/g, '');
+        validateInput();
+      });
+
       form.addEventListener('submit', async (e) => {
         e.preventDefault();
-        const code = codeInput.value;
+        const code = codeInput.value.trim();
 
         if (!/^\d{6}$/.test(code)) {
           showMessage('Please enter a 6-digit code', 'error');
@@ -124,6 +140,7 @@ import { SITE_TITLE } from '../consts';
             submitBtn.disabled = false;
             submitBtn.textContent = 'Verify';
             codeInput.value = '';
+            validateInput();
           }
         } catch (error) {
           showMessage('Network error', 'error');
