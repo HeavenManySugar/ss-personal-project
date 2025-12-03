@@ -3,47 +3,200 @@ import BaseHead from '../components/BaseHead.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+
+// Check if user is logged in
+const sessionCookie = Astro.cookies.get('session');
 ---
 
 <!doctype html>
 <html lang="en">
 	<head>
 		<BaseHead title={SITE_TITLE} description={SITE_DESCRIPTION} />
+		<style>
+			.hero {
+				text-align: center;
+				padding: 4rem 2rem;
+				background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+				color: white;
+				border-radius: 8px;
+				margin: 2rem auto;
+				max-width: 800px;
+			}
+			.hero h1 {
+				font-size: 2.5rem;
+				margin-bottom: 1rem;
+			}
+			.hero p {
+				font-size: 1.2rem;
+				margin-bottom: 2rem;
+				opacity: 0.9;
+			}
+			.cta-buttons {
+				display: flex;
+				gap: 1rem;
+				justify-content: center;
+				flex-wrap: wrap;
+			}
+			.btn {
+				padding: 1rem 2rem;
+				font-size: 1.1rem;
+				font-weight: bold;
+				border: none;
+				border-radius: 6px;
+				cursor: pointer;
+				text-decoration: none;
+				display: inline-block;
+				transition: transform 0.2s, box-shadow 0.2s;
+			}
+			.btn:hover {
+				transform: translateY(-2px);
+				box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+			}
+			.btn-primary {
+				background: white;
+				color: #667eea;
+			}
+			.btn-secondary {
+				background: rgba(255,255,255,0.2);
+				color: white;
+				border: 2px solid white;
+			}
+			.features {
+				max-width: 1000px;
+				margin: 3rem auto;
+				padding: 0 2rem;
+			}
+			.features h2 {
+				text-align: center;
+				margin-bottom: 2rem;
+				font-size: 2rem;
+			}
+			.feature-grid {
+				display: grid;
+				grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+				gap: 2rem;
+			}
+			.feature-card {
+				background: #f9f9f9;
+				padding: 1.5rem;
+				border-radius: 8px;
+				box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+			}
+			.feature-card h3 {
+				margin-top: 0;
+				color: #667eea;
+			}
+			.feature-card ul {
+				padding-left: 1.5rem;
+				line-height: 1.8;
+			}
+		</style>
 	</head>
 	<body>
 		<Header />
 		<main>
-			<h1>🧑‍🚀 Hello, Astronaut!</h1>
-			<p>
-				Welcome to the official <a href="https://astro.build/">Astro</a> blog starter template. This
-				template serves as a lightweight, minimally-styled starting point for anyone looking to build
-				a personal website, blog, or portfolio with Astro.
-			</p>
-			<p>
-				This template comes with a few integrations already configured in your
-				<code>astro.config.mjs</code> file. You can customize your setup with
-				<a href="https://astro.build/integrations">Astro Integrations</a> to add tools like Tailwind,
-				React, or Vue to your project.
-			</p>
-			<p>Here are a few ideas on how to get started with the template:</p>
-			<ul>
-				<li>Edit this page in <code>src/pages/index.astro</code></li>
-				<li>Edit the site header items in <code>src/components/Header.astro</code></li>
-				<li>Add your name to the footer in <code>src/components/Footer.astro</code></li>
-				<li>Check out the included blog posts in <code>src/content/blog/</code></li>
-				<li>Customize the blog post page layout in <code>src/layouts/BlogPost.astro</code></li>
-			</ul>
-			<p>
-				Have fun! If you get stuck, remember to <a href="https://docs.astro.build/"
-					>read the docs
-				</a> or <a href="https://astro.build/chat">join us on Discord</a> to ask questions.
-			</p>
-			<p>
-				Looking for a blog template with a bit more personality? Check out <a
-					href="https://github.com/Charca/astro-blog-template"
-					>astro-blog-template
-				</a> by <a href="https://twitter.com/Charca">Maxi Ferreira</a>.
-			</p>
+			<div class="hero">
+				<h1>🔐 Secure Login & User Authentication System</h1>
+				<p>
+					A comprehensive demonstration of modern security practices including 
+					PBKDF2 password hashing, multi-factor authentication, and protection 
+					against common web vulnerabilities.
+				</p>
+				<div class="cta-buttons">
+					{sessionCookie ? (
+						<a href="/dashboard" class="btn btn-primary">Go to Dashboard</a>
+					) : (
+						<>
+							<a href="/register" class="btn btn-primary">Create Account</a>
+							<a href="/login" class="btn btn-secondary">Login</a>
+						</>
+					)}
+				</div>
+			</div>
+
+			<div class="features">
+				<h2>Security Features Implemented</h2>
+				<div class="feature-grid">
+					<div class="feature-card">
+						<h3>🔒 Password Security</h3>
+						<ul>
+							<li>PBKDF2 hashing (100K iterations)</li>
+							<li>Unique salt per user</li>
+							<li>Strong password requirements</li>
+							<li>Never stored in plain text</li>
+						</ul>
+					</div>
+
+					<div class="feature-card">
+						<h3>📱 Multi-Factor Authentication</h3>
+						<ul>
+							<li>TOTP-based (RFC 6238)</li>
+							<li>Google Authenticator compatible</li>
+							<li>QR code setup</li>
+							<li>Clock drift tolerance</li>
+						</ul>
+					</div>
+
+					<div class="feature-card">
+						<h3>🛡️ Attack Prevention</h3>
+						<ul>
+							<li>SQL Injection protection</li>
+							<li>XSS prevention</li>
+							<li>CSRF tokens</li>
+							<li>Rate limiting</li>
+						</ul>
+					</div>
+
+					<div class="feature-card">
+						<h3>🔐 Session Security</h3>
+						<ul>
+							<li>Secure cookies (HttpOnly, Secure)</li>
+							<li>Session expiration</li>
+							<li>IP tracking</li>
+							<li>Proper logout handling</li>
+						</ul>
+					</div>
+
+					<div class="feature-card">
+						<h3>📊 Security Monitoring</h3>
+						<ul>
+							<li>Login attempt logging</li>
+							<li>Account lockout mechanism</li>
+							<li>Failed attempt tracking</li>
+							<li>Audit trail</li>
+						</ul>
+					</div>
+
+					<div class="feature-card">
+						<h3>✅ Best Practices</h3>
+						<ul>
+							<li>Input validation</li>
+							<li>Prepared statements</li>
+							<li>Security headers</li>
+							<li>Content Security Policy</li>
+						</ul>
+					</div>
+				</div>
+			</div>
+
+			<div class="features">
+				<div class="feature-card" style="background: #fff3cd; border: 2px solid #ffc107;">
+					<h3>📝 System Security Project</h3>
+					<p><strong>Course:</strong> System Security</p>
+					<p><strong>Objectives:</strong></p>
+					<ul>
+						<li>Apply secure coding practices</li>
+						<li>Implement strong authentication (hashing, MFA)</li>
+						<li>Prevent vulnerabilities (SQL Injection, XSS)</li>
+						<li>Perform security testing</li>
+					</ul>
+					<p style="margin-top: 1rem;">
+						<a href="/blog" style="color: #667eea; text-decoration: underline;">
+							View project documentation →
+						</a>
+					</p>
+				</div>
+			</div>
 		</main>
 		<Footer />
 	</body>

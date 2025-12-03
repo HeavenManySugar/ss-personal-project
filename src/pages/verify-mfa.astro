@@ -1,0 +1,136 @@
+---
+/**
+ * MFA Verification Page
+ */
+import BaseHead from '../components/BaseHead.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE_TITLE } from '../consts';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`MFA Verification - ${SITE_TITLE}`} description="Two-Factor Authentication" />
+    <style>
+      .auth-container {
+        max-width: 500px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f9f9f9;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      .form-group { margin-bottom: 1.5rem; }
+      .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+      .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1.5rem;
+        text-align: center;
+        letter-spacing: 0.5rem;
+        box-sizing: border-box;
+      }
+      .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .btn:hover { background: #1976D2; }
+      .message { padding: 1rem; margin-bottom: 1rem; border-radius: 4px; display: none; }
+      .message.error { background: #ffebee; color: #c62828; }
+      .message.show { display: block; }
+      .info { background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <div class="auth-container">
+        <h1>🔐 Two-Factor Authentication</h1>
+        <div class="info">
+          <p>Enter the 6-digit code from your authenticator app.</p>
+        </div>
+        <div id="message" class="message"></div>
+        <form id="mfaForm">
+          <div class="form-group">
+            <label for="code">Authentication Code</label>
+            <input 
+              type="text" 
+              id="code" 
+              required 
+              maxlength="6"
+              pattern="\d{6}"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+            />
+          </div>
+          <button type="submit" class="btn" id="submitBtn">Verify</button>
+        </form>
+      </div>
+    </main>
+    <Footer />
+
+    <script>
+      const form = document.getElementById('mfaForm') as HTMLFormElement;
+      const messageDiv = document.getElementById('message') as HTMLDivElement;
+      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+      const codeInput = document.getElementById('code') as HTMLInputElement;
+
+      const username = sessionStorage.getItem('mfa_username');
+      if (!username) {
+        window.location.href = '/login';
+      }
+
+      function showMessage(text: string, type: 'error') {
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type} show`;
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const code = codeInput.value;
+
+        if (!/^\d{6}$/.test(code)) {
+          showMessage('Please enter a 6-digit code', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Verifying...';
+
+        try {
+          const response = await fetch('/api/auth/verify-mfa', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, code })
+          });
+
+          const data = await response.json() as { success: boolean; message: string };
+
+          if (data.success) {
+            sessionStorage.removeItem('mfa_username');
+            window.location.href = '/dashboard';
+          } else {
+            showMessage(data.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Verify';
+            codeInput.value = '';
+          }
+        } catch (error) {
+          showMessage('Network error', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Verify';
+        }
+      });
+    </script>
+  </body>
+</html>

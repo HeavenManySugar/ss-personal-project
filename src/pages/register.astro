@@ -1,0 +1,283 @@
+---
+/**
+ * User Registration Page
+ * Demonstrates secure form handling and XSS prevention
+ */
+import BaseHead from '../components/BaseHead.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+
+// Check if already logged in
+const sessionCookie = Astro.cookies.get('session');
+if (sessionCookie) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`Register - ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
+    <style>
+      .auth-container {
+        max-width: 500px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f9f9f9;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+        color: #333;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+      .form-group input:focus {
+        outline: none;
+        border-color: #4CAF50;
+        box-shadow: 0 0 0 2px rgba(76,175,80,0.2);
+      }
+      .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+      .btn:hover {
+        background: #45a049;
+      }
+      .btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .message {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        display: none;
+      }
+      .message.error {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef5350;
+      }
+      .message.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #66bb6a;
+      }
+      .message.show {
+        display: block;
+      }
+      .password-strength {
+        margin-top: 0.5rem;
+        font-size: 0.875rem;
+      }
+      .strength-weak { color: #d32f2f; }
+      .strength-medium { color: #f57c00; }
+      .strength-strong { color: #388e3c; }
+      .link {
+        text-align: center;
+        margin-top: 1rem;
+      }
+      .security-note {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <div class="auth-container">
+        <h1>🔐 Secure Registration</h1>
+        
+        <div class="security-note">
+          <strong>Security Features:</strong>
+          <ul style="margin: 0.5rem 0 0 1.5rem;">
+            <li>Passwords hashed with PBKDF2 (100,000 iterations)</li>
+            <li>XSS protection through input sanitization</li>
+            <li>SQL injection prevention with prepared statements</li>
+          </ul>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <form id="registerForm">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input 
+              type="text" 
+              id="username" 
+              name="username" 
+              required 
+              minlength="3"
+              maxlength="50"
+              pattern="[a-zA-Z0-9_-]+"
+              title="3-50 characters, letters, numbers, underscore, or hyphen only"
+              autocomplete="username"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input 
+              type="email" 
+              id="email" 
+              name="email" 
+              required 
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input 
+              type="password" 
+              id="password" 
+              name="password" 
+              required 
+              minlength="8"
+              autocomplete="new-password"
+            />
+            <div id="passwordStrength" class="password-strength"></div>
+          </div>
+
+          <div class="form-group">
+            <label for="confirmPassword">Confirm Password</label>
+            <input 
+              type="password" 
+              id="confirmPassword" 
+              name="confirmPassword" 
+              required 
+              autocomplete="new-password"
+            />
+          </div>
+
+          <button type="submit" class="btn" id="submitBtn">Register</button>
+        </form>
+
+        <div class="link">
+          <p>Already have an account? <a href="/login">Login here</a></p>
+        </div>
+      </div>
+    </main>
+    <Footer />
+
+    <script>
+      const form = document.getElementById('registerForm') as HTMLFormElement;
+      const messageDiv = document.getElementById('message') as HTMLDivElement;
+      const passwordInput = document.getElementById('password') as HTMLInputElement;
+      const confirmPasswordInput = document.getElementById('confirmPassword') as HTMLInputElement;
+      const strengthDiv = document.getElementById('passwordStrength') as HTMLDivElement;
+      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+
+      // Password strength checker
+      passwordInput.addEventListener('input', () => {
+        const password = passwordInput.value;
+        let strength = 0;
+        let feedback = '';
+
+        if (password.length >= 8) strength++;
+        if (password.length >= 12) strength++;
+        if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+        if (/\d/.test(password)) strength++;
+        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) strength++;
+
+        if (strength < 3) {
+          strengthDiv.className = 'password-strength strength-weak';
+          feedback = '⚠️ Weak password';
+        } else if (strength < 5) {
+          strengthDiv.className = 'password-strength strength-medium';
+          feedback = '⚡ Medium password';
+        } else {
+          strengthDiv.className = 'password-strength strength-strong';
+          feedback = '✓ Strong password';
+        }
+
+        strengthDiv.textContent = feedback;
+      });
+
+      function showMessage(text: string, type: 'error' | 'success') {
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type} show`;
+        setTimeout(() => {
+          messageDiv.className = 'message';
+        }, 5000);
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const username = (document.getElementById('username') as HTMLInputElement).value;
+        const email = (document.getElementById('email') as HTMLInputElement).value;
+        const password = passwordInput.value;
+        const confirmPassword = confirmPasswordInput.value;
+
+        // Client-side validation
+        if (password !== confirmPassword) {
+          showMessage('Passwords do not match', 'error');
+          return;
+        }
+
+        if (password.length < 8) {
+          showMessage('Password must be at least 8 characters', 'error');
+          return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Registering...';
+
+        try {
+          const response = await fetch('/api/auth/register', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, password })
+          });
+
+          const data = await response.json() as { success: boolean; message: string };
+
+          if (data.success) {
+            showMessage(data.message, 'success');
+            setTimeout(() => {
+              window.location.href = '/login';
+            }, 1500);
+          } else {
+            showMessage(data.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Register';
+          }
+        } catch (error) {
+          showMessage('Network error. Please try again.', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Register';
+        }
+      });
+    </script>
+  </body>
+</html>

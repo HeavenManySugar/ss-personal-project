@@ -1,0 +1,141 @@
+---
+/**
+ * User Login Page
+ */
+import BaseHead from '../components/BaseHead.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+
+const sessionCookie = Astro.cookies.get('session');
+if (sessionCookie) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`Login - ${SITE_TITLE}`} description={SITE_DESCRIPTION} />
+    <style>
+      .auth-container {
+        max-width: 500px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f9f9f9;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: bold;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        box-sizing: border-box;
+      }
+      .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: #2196F3;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .btn:hover { background: #1976D2; }
+      .btn:disabled { background: #ccc; cursor: not-allowed; }
+      .message {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        display: none;
+      }
+      .message.error { background: #ffebee; color: #c62828; }
+      .message.success { background: #e8f5e9; color: #2e7d32; }
+      .message.show { display: block; }
+      .link { text-align: center; margin-top: 1rem; }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <div class="auth-container">
+        <h1>🔓 Login</h1>
+        <div id="message" class="message"></div>
+        <form id="loginForm">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" required autocomplete="username" />
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" required autocomplete="current-password" />
+          </div>
+          <button type="submit" class="btn" id="submitBtn">Login</button>
+        </form>
+        <div class="link">
+          <p>Don't have an account? <a href="/register">Register here</a></p>
+        </div>
+      </div>
+    </main>
+    <Footer />
+
+    <script>
+      const form = document.getElementById('loginForm') as HTMLFormElement;
+      const messageDiv = document.getElementById('message') as HTMLDivElement;
+      const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
+
+      function showMessage(text: string, type: 'error' | 'success') {
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type} show`;
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const username = (document.getElementById('username') as HTMLInputElement).value;
+        const password = (document.getElementById('password') as HTMLInputElement).value;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Logging in...';
+
+        try {
+          const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+          });
+
+          const data = await response.json() as { success: boolean; message: string; requiresMFA?: boolean };
+
+          if (data.success) {
+            if (data.requiresMFA) {
+              sessionStorage.setItem('mfa_username', username);
+              window.location.href = '/verify-mfa';
+            } else {
+              window.location.href = '/dashboard';
+            }
+          } else {
+            showMessage(data.message, 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Login';
+          }
+        } catch (error) {
+          showMessage('Network error', 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Login';
+        }
+      });
+    </script>
+  </body>
+</html>

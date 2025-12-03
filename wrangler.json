@@ -7,6 +7,13 @@
     "directory": "./dist",
     "binding": "ASSETS"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "auth_system",
+      "database_id": "3c509954-1fcd-4f86-8db0-4d29e1535fce"
+    }
+  ],
   "observability": {
     "enabled": true
   },

@@ -1,0 +1,316 @@
+---
+/**
+ * User Dashboard
+ * Protected page - requires authentication
+ */
+import BaseHead from '../components/BaseHead.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE_TITLE } from '../consts';
+import { getSessionFromCookie, validateSession } from '../lib/session';
+
+const db = Astro.locals.runtime.env.DB as D1Database;
+const sessionId = getSessionFromCookie(Astro.request);
+
+if (!sessionId) {
+  return Astro.redirect('/login');
+}
+
+const session = await validateSession(db, sessionId);
+if (!session) {
+  return Astro.redirect('/login');
+}
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`Dashboard - ${SITE_TITLE}`} description="User Dashboard" />
+    <style>
+      .dashboard {
+        max-width: 800px;
+        margin: 2rem auto;
+        padding: 2rem;
+      }
+      .welcome {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+      }
+      .card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        margin-bottom: 1.5rem;
+      }
+      .card h2 {
+        margin-top: 0;
+        color: #333;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 1rem;
+      }
+      .info-label {
+        font-weight: bold;
+        color: #666;
+      }
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 4px;
+        font-weight: bold;
+        cursor: pointer;
+        margin-right: 1rem;
+        transition: all 0.3s;
+      }
+      .btn-primary {
+        background: #4CAF50;
+        color: white;
+      }
+      .btn-primary:hover {
+        background: #45a049;
+      }
+      .btn-danger {
+        background: #f44336;
+        color: white;
+      }
+      .btn-danger:hover {
+        background: #da190b;
+      }
+      .btn-secondary {
+        background: #2196F3;
+        color: white;
+      }
+      .btn-secondary:hover {
+        background: #0b7dda;
+      }
+      .mfa-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: bold;
+      }
+      .mfa-enabled {
+        background: #c8e6c9;
+        color: #2e7d32;
+      }
+      .mfa-disabled {
+        background: #ffccbc;
+        color: #d84315;
+      }
+      .qr-code {
+        text-align: center;
+        padding: 1rem;
+      }
+      .qr-code img {
+        max-width: 200px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+      }
+      .message {
+        padding: 1rem;
+        margin-bottom: 1rem;
+        border-radius: 4px;
+        display: none;
+      }
+      .message.error { background: #ffebee; color: #c62828; }
+      .message.success { background: #e8f5e9; color: #2e7d32; }
+      .message.show { display: block; }
+      #mfaSetup { display: none; }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <div class="dashboard">
+        <div class="welcome">
+          <h1>Welcome, {session.username}! 👋</h1>
+          <p>You are securely logged into your account.</p>
+        </div>
+
+        <div id="message" class="message"></div>
+
+        <div class="card">
+          <h2>Account Information</h2>
+          <div class="info-grid">
+            <div class="info-label">Username:</div>
+            <div>{session.username}</div>
+            <div class="info-label">Email:</div>
+            <div>{session.email}</div>
+            <div class="info-label">MFA Status:</div>
+            <div>
+              {session.mfaEnabled ? (
+                <span class="mfa-status mfa-enabled">✓ Enabled</span>
+              ) : (
+                <span class="mfa-status mfa-disabled">✗ Disabled</span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🔐 Two-Factor Authentication (MFA)</h2>
+          <p>
+            Add an extra layer of security to your account by enabling MFA. 
+            You'll need to enter a code from your authenticator app when logging in.
+          </p>
+          
+          {session.mfaEnabled ? (
+            <button class="btn btn-danger" id="disableMfaBtn">Disable MFA</button>
+          ) : (
+            <button class="btn btn-primary" id="enableMfaBtn">Enable MFA</button>
+          )}
+
+          <div id="mfaSetup">
+            <hr style="margin: 1.5rem 0;" />
+            <h3>Setup Instructions</h3>
+            <ol>
+              <li>Install Google Authenticator or similar app</li>
+              <li>Scan the QR code below</li>
+              <li>Enter the 6-digit code to verify</li>
+            </ol>
+            <div class="qr-code" id="qrCodeContainer"></div>
+            <div class="form-group" style="max-width: 300px; margin: 1rem auto;">
+              <label for="mfaCode">Enter verification code:</label>
+              <input 
+                type="text" 
+                id="mfaCode" 
+                maxlength="6"
+                pattern="\d{6}"
+                style="width: 100%; padding: 0.75rem; text-align: center; font-size: 1.5rem; letter-spacing: 0.5rem;"
+              />
+            </div>
+            <button class="btn btn-secondary" id="verifyMfaBtn">Verify & Enable</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Session Management</h2>
+          <button class="btn btn-danger" id="logoutBtn">Logout</button>
+        </div>
+
+        <div class="card" style="background: #fff3cd;">
+          <h2>🛡️ Security Features Demonstrated</h2>
+          <ul>
+            <li><strong>XSS Prevention:</strong> All user inputs are sanitized and escaped</li>
+            <li><strong>SQL Injection Prevention:</strong> Prepared statements used for all queries</li>
+            <li><strong>Password Security:</strong> PBKDF2 hashing with 100,000 iterations</li>
+            <li><strong>Session Security:</strong> HttpOnly, Secure cookies with CSRF protection</li>
+            <li><strong>MFA Support:</strong> TOTP-based two-factor authentication</li>
+            <li><strong>Rate Limiting:</strong> Account locking after failed login attempts</li>
+          </ul>
+        </div>
+      </div>
+    </main>
+    <Footer />
+
+    <script define:vars={{ mfaEnabled: session.mfaEnabled }}>
+      const messageDiv = document.getElementById('message');
+      const enableMfaBtn = document.getElementById('enableMfaBtn');
+      const disableMfaBtn = document.getElementById('disableMfaBtn');
+      const logoutBtn = document.getElementById('logoutBtn');
+      const mfaSetup = document.getElementById('mfaSetup');
+      const verifyMfaBtn = document.getElementById('verifyMfaBtn');
+      const mfaCodeInput = document.getElementById('mfaCode');
+      const qrCodeContainer = document.getElementById('qrCodeContainer');
+
+      function showMessage(text, type) {
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type} show`;
+        setTimeout(() => messageDiv.className = 'message', 5000);
+      }
+
+      if (enableMfaBtn) {
+        enableMfaBtn.addEventListener('click', async () => {
+          try {
+            const response = await fetch('/api/auth/setup-mfa', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'generate' })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              mfaSetup.style.display = 'block';
+              qrCodeContainer.innerHTML = `
+                <img src="${data.mfaSetup.qrCodeUrl}" alt="QR Code" />
+                <p style="margin-top: 1rem;">Or enter manually: <code>${data.mfaSetup.manualEntryKey}</code></p>
+              `;
+            } else {
+              showMessage(data.message, 'error');
+            }
+          } catch (error) {
+            showMessage('Failed to setup MFA', 'error');
+          }
+        });
+      }
+
+      if (verifyMfaBtn) {
+        verifyMfaBtn.addEventListener('click', async () => {
+          const code = mfaCodeInput.value;
+          if (!/^\d{6}$/.test(code)) {
+            showMessage('Please enter a 6-digit code', 'error');
+            return;
+          }
+
+          try {
+            const response = await fetch('/api/auth/setup-mfa', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'verify', code })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              showMessage('MFA enabled successfully!', 'success');
+              setTimeout(() => location.reload(), 1500);
+            } else {
+              showMessage(data.message, 'error');
+            }
+          } catch (error) {
+            showMessage('Failed to verify MFA', 'error');
+          }
+        });
+      }
+
+      if (disableMfaBtn) {
+        disableMfaBtn.addEventListener('click', async () => {
+          if (!confirm('Are you sure you want to disable MFA?')) return;
+
+          try {
+            const response = await fetch('/api/auth/setup-mfa', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'disable' })
+            });
+
+            const data = await response.json();
+            if (data.success) {
+              showMessage('MFA disabled', 'success');
+              setTimeout(() => location.reload(), 1500);
+            } else {
+              showMessage(data.message, 'error');
+            }
+          } catch (error) {
+            showMessage('Failed to disable MFA', 'error');
+          }
+        });
+      }
+
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await fetch('/api/auth/logout', { method: 'POST' });
+          window.location.href = '/login';
+        } catch (error) {
+          showMessage('Logout failed', 'error');
+        }
+      });
+    </script>
+  </body>
+</html>
