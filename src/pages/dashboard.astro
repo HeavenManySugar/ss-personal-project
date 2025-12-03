@@ -8,6 +8,7 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { SITE_TITLE } from '../consts';
 import { getSessionFromCookie, validateSession } from '../lib/session';
+import { getUserOAuthAccounts } from '../lib/oauth';
 
 const db = Astro.locals.runtime.env.DB as D1Database;
 const sessionId = getSessionFromCookie(Astro.request);
@@ -20,6 +21,14 @@ const session = await validateSession(db, sessionId);
 if (!session) {
   return Astro.redirect('/login');
 }
+
+// Get user's linked OAuth accounts
+const oauthAccounts = await getUserOAuthAccounts(db, session.userId);
+
+// Check if user is admin
+const isAdmin = await db.prepare(
+  'SELECT 1 FROM admin_users WHERE user_id = ?'
+).bind(session.userId).first();
 ---
 
 <!doctype html>
@@ -293,12 +302,34 @@ if (!session) {
                   <span>Enable 2FA</span>
                 </button>
               )}
+              {isAdmin && (
+                <a href="/admin/oauth" class="btn btn-secondary">
+                  <span>⚙️ OAuth Settings</span>
+                </a>
+              )}
               <button class="btn btn-secondary" id="logoutBtn">
                 <span>Sign Out</span>
               </button>
             </div>
           </div>
         </div>
+
+        {oauthAccounts.length > 0 && (
+          <div class="card" style="margin-bottom: 2rem;">
+            <h2>🔗 Linked Accounts</h2>
+            <p style="color: rgb(var(--gray)); margin-bottom: 1rem;">
+              OAuth providers linked to your account for quick sign-in.
+            </p>
+            <div>
+              {oauthAccounts.map((account) => (
+                <div class="info-row">
+                  <span class="info-label">{account.provider_display_name}</span>
+                  <span class="info-value">{account.provider_email}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div class="card" style="grid-column: 1 / -1;">
           <h2>📱 Two-Factor Authentication</h2>

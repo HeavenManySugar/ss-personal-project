@@ -1,0 +1,605 @@
+---
+import type { User } from '../../types/auth';
+
+const sessionId = Astro.cookies.get('sessionId')?.value;
+
+// Redirect to login if not authenticated
+if (!sessionId) {
+  return Astro.redirect('/login');
+}
+
+const db = Astro.locals.runtime.env.DB as D1Database;
+
+// Validate session
+const session = await db.prepare(
+  `SELECT s.*, u.* FROM sessions s 
+   JOIN users u ON s.user_id = u.id 
+   WHERE s.id = ? AND s.expires_at > datetime('now')`
+).bind(sessionId).first<User & { csrf_token: string }>();
+
+if (!session) {
+  Astro.cookies.delete('sessionId', { path: '/' });
+  return Astro.redirect('/login');
+}
+
+// Check if user is admin
+const isAdmin = await db.prepare(
+  'SELECT 1 FROM admin_users WHERE user_id = ?'
+).bind(session.id).first();
+
+if (!isAdmin) {
+  return Astro.redirect('/dashboard');
+}
+
+// Handle form submissions
+let message = '';
+let messageType = '';
+
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData();
+  const action = formData.get('action');
+
+  try {
+    if (action === 'create') {
+      const name = formData.get('name') as string;
+      const displayName = formData.get('display_name') as string;
+      const clientId = formData.get('client_id') as string;
+      const clientSecret = formData.get('client_secret') as string;
+      const authUrl = formData.get('authorization_url') as string;
+      const tokenUrl = formData.get('token_url') as string;
+      const userInfoUrl = formData.get('user_info_url') as string;
+      const scope = formData.get('scope') as string;
+      const iconUrl = formData.get('icon_url') as string;
+
+      await db.prepare(
+        `INSERT INTO oauth_providers 
+         (name, display_name, client_id, client_secret, authorization_url, token_url, user_info_url, scope, icon_url, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+      ).bind(name, displayName, clientId, clientSecret, authUrl, tokenUrl, userInfoUrl, scope, iconUrl || null).run();
+
+      message = 'OAuth provider created successfully';
+      messageType = 'success';
+    } else if (action === 'update') {
+      const id = parseInt(formData.get('id') as string);
+      const displayName = formData.get('display_name') as string;
+      const clientId = formData.get('client_id') as string;
+      const clientSecret = formData.get('client_secret') as string;
+      const authUrl = formData.get('authorization_url') as string;
+      const tokenUrl = formData.get('token_url') as string;
+      const userInfoUrl = formData.get('user_info_url') as string;
+      const scope = formData.get('scope') as string;
+      const iconUrl = formData.get('icon_url') as string;
+
+      await db.prepare(
+        `UPDATE oauth_providers 
+         SET display_name = ?, client_id = ?, client_secret = ?, 
+             authorization_url = ?, token_url = ?, user_info_url = ?, scope = ?, icon_url = ?
+         WHERE id = ?`
+      ).bind(displayName, clientId, clientSecret, authUrl, tokenUrl, userInfoUrl, scope, iconUrl || null, id).run();
+
+      message = 'OAuth provider updated successfully';
+      messageType = 'success';
+    } else if (action === 'toggle') {
+      const id = parseInt(formData.get('id') as string);
+      const enabled = formData.get('enabled') === '1' ? 0 : 1;
+
+      await db.prepare(
+        'UPDATE oauth_providers SET enabled = ? WHERE id = ?'
+      ).bind(enabled, id).run();
+
+      message = `OAuth provider ${enabled ? 'enabled' : 'disabled'} successfully`;
+      messageType = 'success';
+    } else if (action === 'delete') {
+      const id = parseInt(formData.get('id') as string);
+
+      // Check if any users are linked to this provider
+      const linkedUsers = await db.prepare(
+        'SELECT COUNT(*) as count FROM oauth_accounts WHERE provider_id = ?'
+      ).bind(id).first<{ count: number }>();
+
+      if (linkedUsers && linkedUsers.count > 0) {
+        message = `Cannot delete provider: ${linkedUsers.count} user(s) are linked to it`;
+        messageType = 'error';
+      } else {
+        await db.prepare('DELETE FROM oauth_providers WHERE id = ?').bind(id).run();
+        message = 'OAuth provider deleted successfully';
+        messageType = 'success';
+      }
+    }
+  } catch (error) {
+    console.error('OAuth management error:', error);
+    message = 'An error occurred';
+    messageType = 'error';
+  }
+}
+
+// Get all OAuth providers
+const { results: providers } = await db.prepare(
+  'SELECT * FROM oauth_providers ORDER BY display_name'
+).all<{
+  id: number;
+  name: string;
+  display_name: string;
+  client_id: string;
+  client_secret: string;
+  authorization_url: string;
+  token_url: string;
+  user_info_url: string;
+  scope: string;
+  icon_url: string | null;
+  enabled: number;
+}>();
+
+// Predefined provider templates
+const providerTemplates = {
+  google: {
+    name: 'google',
+    display_name: 'Google',
+    authorization_url: 'https://accounts.google.com/o/oauth2/v2/auth',
+    token_url: 'https://oauth2.googleapis.com/token',
+    user_info_url: 'https://www.googleapis.com/oauth2/v2/userinfo',
+    scope: 'openid email profile',
+    icon_url: 'https://www.google.com/favicon.ico',
+  },
+  github: {
+    name: 'github',
+    display_name: 'GitHub',
+    authorization_url: 'https://github.com/login/oauth/authorize',
+    token_url: 'https://github.com/login/oauth/access_token',
+    user_info_url: 'https://api.github.com/user',
+    scope: 'read:user user:email',
+    icon_url: 'https://github.com/favicon.ico',
+  },
+  microsoft: {
+    name: 'microsoft',
+    display_name: 'Microsoft',
+    authorization_url: 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    token_url: 'https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    user_info_url: 'https://graph.microsoft.com/v1.0/me',
+    scope: 'openid email profile User.Read',
+    icon_url: 'https://www.microsoft.com/favicon.ico',
+  },
+};
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OAuth Management - SecureAuth</title>
+    <style>
+      .admin-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+      }
+
+      .admin-header {
+        margin-bottom: 2rem;
+      }
+
+      .admin-header h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+      }
+
+      .admin-header p {
+        color: var(--text-secondary);
+      }
+
+      .message {
+        padding: 1rem;
+        border-radius: var(--border-radius);
+        margin-bottom: 1.5rem;
+        font-weight: 500;
+      }
+
+      .message.success {
+        background: rgba(52, 199, 89, 0.1);
+        color: var(--success);
+        border: 1px solid rgba(52, 199, 89, 0.3);
+      }
+
+      .message.error {
+        background: rgba(255, 59, 48, 0.1);
+        color: var(--error);
+        border: 1px solid rgba(255, 59, 48, 0.3);
+      }
+
+      .section {
+        background: var(--bg-secondary);
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: var(--box-shadow);
+      }
+
+      .section h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+      }
+
+      .form-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      }
+
+      .form-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .form-group label {
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+      }
+
+      .form-group input,
+      .form-group select {
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        font-size: 1rem;
+        transition: var(--transition);
+      }
+
+      .form-group input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: var(--border-radius);
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+      }
+
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #0051d5;
+      }
+
+      .btn-danger {
+        background: var(--error);
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #d70015;
+      }
+
+      .btn-secondary {
+        background: var(--gray-light);
+        color: var(--text-primary);
+      }
+
+      .provider-list {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .provider-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .provider-info {
+        flex: 1;
+      }
+
+      .provider-name {
+        font-weight: 600;
+        font-size: 1.125rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .provider-status {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-top: 0.5rem;
+      }
+
+      .provider-status.enabled {
+        background: rgba(52, 199, 89, 0.1);
+        color: var(--success);
+      }
+
+      .provider-status.disabled {
+        background: rgba(142, 142, 147, 0.1);
+        color: var(--text-secondary);
+      }
+
+      .provider-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .template-buttons {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .template-btn {
+        padding: 0.5rem 1rem;
+        background: var(--gray-light);
+        border: 1px solid var(--border-color);
+        border-radius: var(--border-radius);
+        cursor: pointer;
+        transition: var(--transition);
+      }
+
+      .template-btn:hover {
+        background: var(--accent);
+        color: white;
+        border-color: var(--accent);
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal.show {
+        display: flex;
+      }
+
+      .modal-content {
+        background: white;
+        border-radius: var(--border-radius);
+        padding: 2rem;
+        max-width: 600px;
+        width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: var(--text-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-container">
+      <div class="admin-header">
+        <h1>OAuth Provider Management</h1>
+        <p>Configure OAuth authentication providers for your application</p>
+      </div>
+
+      {message && (
+        <div class={`message ${messageType}`}>
+          {message}
+        </div>
+      )}
+
+      <div class="section">
+        <h2>Add New Provider</h2>
+        <div class="template-buttons">
+          <button class="template-btn" onclick="loadTemplate('google')">Google Template</button>
+          <button class="template-btn" onclick="loadTemplate('github')">GitHub Template</button>
+          <button class="template-btn" onclick="loadTemplate('microsoft')">Microsoft Template</button>
+        </div>
+
+        <form method="POST">
+          <input type="hidden" name="action" value="create" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="name">Provider Name (lowercase, no spaces)</label>
+              <input type="text" id="name" name="name" required pattern="[a-z]+" />
+            </div>
+            <div class="form-group">
+              <label for="display_name">Display Name</label>
+              <input type="text" id="display_name" name="display_name" required />
+            </div>
+            <div class="form-group">
+              <label for="client_id">Client ID</label>
+              <input type="text" id="client_id" name="client_id" required />
+            </div>
+            <div class="form-group">
+              <label for="client_secret">Client Secret</label>
+              <input type="password" id="client_secret" name="client_secret" required />
+            </div>
+            <div class="form-group">
+              <label for="authorization_url">Authorization URL</label>
+              <input type="url" id="authorization_url" name="authorization_url" required />
+            </div>
+            <div class="form-group">
+              <label for="token_url">Token URL</label>
+              <input type="url" id="token_url" name="token_url" required />
+            </div>
+            <div class="form-group">
+              <label for="user_info_url">User Info URL</label>
+              <input type="url" id="user_info_url" name="user_info_url" required />
+            </div>
+            <div class="form-group">
+              <label for="scope">Scope</label>
+              <input type="text" id="scope" name="scope" required />
+            </div>
+            <div class="form-group">
+              <label for="icon_url">Icon URL (optional)</label>
+              <input type="url" id="icon_url" name="icon_url" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Add Provider</button>
+        </form>
+      </div>
+
+      <div class="section">
+        <h2>Existing Providers</h2>
+        <div class="provider-list">
+          {providers && providers.length > 0 ? (
+            providers.map((provider) => (
+              <div class="provider-card">
+                <div class="provider-info">
+                  <div class="provider-name">{provider.display_name}</div>
+                  <div style="color: var(--text-secondary); font-size: 0.875rem;">
+                    Client ID: {provider.client_id}
+                  </div>
+                  <span class={`provider-status ${provider.enabled ? 'enabled' : 'disabled'}`}>
+                    {provider.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                </div>
+                <div class="provider-actions">
+                  <form method="POST" style="display: inline;">
+                    <input type="hidden" name="action" value="toggle" />
+                    <input type="hidden" name="id" value={provider.id} />
+                    <input type="hidden" name="enabled" value={provider.enabled} />
+                    <button type="submit" class="btn btn-secondary">
+                      {provider.enabled ? 'Disable' : 'Enable'}
+                    </button>
+                  </form>
+                  <button class="btn btn-primary" onclick={`editProvider(${JSON.stringify(provider)})`}>
+                    Edit
+                  </button>
+                  <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this provider?')">
+                    <input type="hidden" name="action" value="delete" />
+                    <input type="hidden" name="id" value={provider.id} />
+                    <button type="submit" class="btn btn-danger">Delete</button>
+                  </form>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p style="color: var(--text-secondary);">No OAuth providers configured yet.</p>
+          )}
+        </div>
+      </div>
+
+      <div style="margin-top: 2rem;">
+        <a href="/dashboard" class="btn btn-secondary">Back to Dashboard</a>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2>Edit OAuth Provider</h2>
+          <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <form method="POST" id="editForm">
+          <input type="hidden" name="action" value="update" />
+          <input type="hidden" name="id" id="edit_id" />
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="edit_display_name">Display Name</label>
+              <input type="text" id="edit_display_name" name="display_name" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_client_id">Client ID</label>
+              <input type="text" id="edit_client_id" name="client_id" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_client_secret">Client Secret</label>
+              <input type="password" id="edit_client_secret" name="client_secret" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_authorization_url">Authorization URL</label>
+              <input type="url" id="edit_authorization_url" name="authorization_url" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_token_url">Token URL</label>
+              <input type="url" id="edit_token_url" name="token_url" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_user_info_url">User Info URL</label>
+              <input type="url" id="edit_user_info_url" name="user_info_url" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_scope">Scope</label>
+              <input type="text" id="edit_scope" name="scope" required />
+            </div>
+            <div class="form-group">
+              <label for="edit_icon_url">Icon URL (optional)</label>
+              <input type="url" id="edit_icon_url" name="icon_url" />
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Update Provider</button>
+        </form>
+      </div>
+    </div>
+
+    <script define:vars={{ providerTemplates }}>
+      function loadTemplate(templateName) {
+        const template = providerTemplates[templateName];
+        if (template) {
+          document.getElementById('name').value = template.name;
+          document.getElementById('display_name').value = template.display_name;
+          document.getElementById('authorization_url').value = template.authorization_url;
+          document.getElementById('token_url').value = template.token_url;
+          document.getElementById('user_info_url').value = template.user_info_url;
+          document.getElementById('scope').value = template.scope;
+          document.getElementById('icon_url').value = template.icon_url;
+        }
+      }
+
+      function editProvider(provider) {
+        document.getElementById('edit_id').value = provider.id;
+        document.getElementById('edit_display_name').value = provider.display_name;
+        document.getElementById('edit_client_id').value = provider.client_id;
+        document.getElementById('edit_client_secret').value = provider.client_secret;
+        document.getElementById('edit_authorization_url').value = provider.authorization_url;
+        document.getElementById('edit_token_url').value = provider.token_url;
+        document.getElementById('edit_user_info_url').value = provider.user_info_url;
+        document.getElementById('edit_scope').value = provider.scope;
+        document.getElementById('edit_icon_url').value = provider.icon_url || '';
+        
+        document.getElementById('editModal').classList.add('show');
+      }
+
+      function closeEditModal() {
+        document.getElementById('editModal').classList.remove('show');
+      }
+
+      // Close modal when clicking outside
+      document.getElementById('editModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeEditModal();
+        }
+      });
+    </script>
+  </body>
+</html>

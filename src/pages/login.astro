@@ -6,11 +6,16 @@ import BaseHead from '../components/BaseHead.astro';
 import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { SITE_TITLE, SITE_DESCRIPTION } from '../consts';
+import { getEnabledProviders } from '../lib/oauth';
 
 const sessionCookie = Astro.cookies.get('session');
 if (sessionCookie) {
   return Astro.redirect('/dashboard');
 }
+
+// Get enabled OAuth providers
+const db = Astro.locals.runtime.env.DB as D1Database;
+const oauthProviders = await getEnabledProviders(db);
 ---
 
 <!doctype html>
@@ -134,6 +139,53 @@ if (sessionCookie) {
       .auth-footer a:hover {
         text-decoration: underline;
       }
+      .oauth-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid rgb(var(--gray-light));
+      }
+      .oauth-header {
+        text-align: center;
+        margin-bottom: 1rem;
+        color: rgb(var(--gray));
+        font-size: 0.875rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .oauth-providers {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+      .oauth-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        width: 100%;
+        padding: 0.875rem 1rem;
+        background: white;
+        color: rgb(var(--gray-dark));
+        border: 1.5px solid rgb(var(--gray-light));
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: var(--transition);
+        font-family: inherit;
+        text-decoration: none;
+      }
+      .oauth-btn:hover {
+        background: rgb(var(--gray-bg));
+        border-color: rgb(var(--gray));
+        transform: translateY(-1px);
+        box-shadow: var(--box-shadow);
+      }
+      .oauth-btn img {
+        width: 20px;
+        height: 20px;
+      }
     </style>
   </head>
   <body>
@@ -157,6 +209,21 @@ if (sessionCookie) {
             </div>
             <button type="submit" class="btn" id="submitBtn">Sign In</button>
           </form>
+
+          {oauthProviders.length > 0 && (
+            <div class="oauth-section">
+              <div class="oauth-header">Or continue with</div>
+              <div class="oauth-providers">
+                {oauthProviders.map((provider) => (
+                  <a href={`/api/oauth/${provider.name}/authorize`} class="oauth-btn">
+                    {provider.icon_url && <img src={provider.icon_url} alt={provider.display_name} />}
+                    <span>{provider.display_name}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div class="auth-footer">
             <p>Don't have an account? <a href="/register">Create one now</a></p>
           </div>
