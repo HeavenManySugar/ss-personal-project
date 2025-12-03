@@ -70,8 +70,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
     
-    // Validate TOTP code format
-    if (!isValidTOTPCode(body.code)) {
+    // Validate code format (6 digits)
+    if (!/^\d{6}$/.test(body.code)) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -95,7 +95,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
       SELECT * FROM users WHERE username = ? AND mfa_enabled = 1
     `).bind(username).first<User>();
     
-    if (!user || !user.mfa_secret) {
+    if (!user) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -111,8 +111,30 @@ export const POST: APIRoute = async ({ request, locals }) => {
       );
     }
     
-    // Verify TOTP code
-    const valid = await verifyTOTP(user.mfa_secret, code);
+    let valid = false;
+    
+    // First, try email MFA code
+    const emailToken = await db.prepare(`
+      SELECT * FROM mfa_email_tokens 
+      WHERE user_id = ? AND code = ? AND verified = 0 AND expires_at > datetime('now')
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).bind(user.id, code).first() as {
+      id: number;
+      code: string;
+      verified: number;
+    } | null;
+    
+    if (emailToken) {
+      // Mark email token as verified
+      await db.prepare(`
+        UPDATE mfa_email_tokens SET verified = 1 WHERE id = ?
+      `).bind(emailToken.id).run();
+      valid = true;
+    } else if (user.mfa_secret) {
+      // Fall back to TOTP verification
+      valid = await verifyTOTP(user.mfa_secret, code);
+    }
     
     if (!valid) {
       const ipAddress = request.headers.get('cf-connecting-ip') || 'unknown';

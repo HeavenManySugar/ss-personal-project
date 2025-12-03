@@ -47,6 +47,7 @@ import { SITE_TITLE } from '../consts';
       .btn:hover { background: #1976D2; }
       .message { padding: 1rem; margin-bottom: 1rem; border-radius: 4px; display: none; }
       .message.error { background: #ffebee; color: #c62828; }
+      .message.success { background: #e8f5e9; color: #2e7d32; }
       .message.show { display: block; }
       .info { background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
     </style>
@@ -58,6 +59,7 @@ import { SITE_TITLE } from '../consts';
         <h1>🔐 Two-Factor Authentication</h1>
         <div class="info">
           <p>Enter the 6-digit code from your authenticator app.</p>
+          <p style="margin-top: 0.5rem;">Or <a href="#" id="emailMfaLink" style="color: #2196F3;">send code to email</a></p>
         </div>
         <div id="message" class="message"></div>
         <form id="mfaForm" novalidate>
@@ -83,13 +85,14 @@ import { SITE_TITLE } from '../consts';
       const messageDiv = document.getElementById('message') as HTMLDivElement;
       const submitBtn = document.getElementById('submitBtn') as HTMLButtonElement;
       const codeInput = document.getElementById('code') as HTMLInputElement;
+      const emailMfaLink = document.getElementById('emailMfaLink') as HTMLAnchorElement;
 
       const username = sessionStorage.getItem('mfa_username');
       if (!username) {
         window.location.href = '/login';
       }
 
-      function showMessage(text: string, type: 'error') {
+      function showMessage(text: string, type: 'error' | 'success') {
         messageDiv.textContent = text;
         messageDiv.className = `message ${type} show`;
       }
@@ -108,6 +111,37 @@ import { SITE_TITLE } from '../consts';
         // Auto-format: only allow digits
         codeInput.value = codeInput.value.replace(/\D/g, '');
         validateInput();
+      });
+
+      // Send MFA code via email
+      emailMfaLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        emailMfaLink.style.pointerEvents = 'none';
+        const originalText = emailMfaLink.textContent;
+        emailMfaLink.textContent = 'Sending...';
+        
+        try {
+          const response = await fetch('/api/auth/send-mfa-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+
+          const data = await response.json() as { success: boolean; message: string; email?: string };
+
+          if (data.success) {
+            showMessage(`Code sent to ${data.email || 'your email'}`, 'success');
+          } else {
+            showMessage(data.message, 'error');
+          }
+        } catch (error) {
+          showMessage('Failed to send email. Please try again.', 'error');
+        } finally {
+          setTimeout(() => {
+            emailMfaLink.style.pointerEvents = 'auto';
+            emailMfaLink.textContent = originalText;
+          }, 2000);
+        }
       });
 
       form.addEventListener('submit', async (e) => {

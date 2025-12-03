@@ -42,12 +42,19 @@ export const POST: APIRoute = async ({ request, locals }) => {
       WHERE expires_at < datetime('now', '-1 day')
     `).run();
 
+    // Delete expired MFA email tokens (older than 1 day)
+    const deleteMfaTokens = await db.prepare(`
+      DELETE FROM mfa_email_tokens 
+      WHERE expires_at < datetime('now', '-1 day')
+    `).run();
+
     return new Response(
       JSON.stringify({
         success: true,
         message: 'Cleanup completed',
         usersDeleted: deleteUsers.meta.changes || 0,
-        tokensDeleted: deleteTokens.meta.changes || 0
+        tokensDeleted: deleteTokens.meta.changes || 0,
+        mfaTokensDeleted: deleteMfaTokens.meta.changes || 0
       }),
       {
         status: 200,
