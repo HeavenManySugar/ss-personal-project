@@ -10,6 +10,7 @@ export interface User {
   salt: string;
   mfa_secret: string | null;
   mfa_enabled: number;
+  email_verified: number;
   created_at: string;
   last_login: string | null;
   failed_login_attempts: number;

@@ -260,15 +260,70 @@ if (sessionCookie) {
             body: JSON.stringify({ username, email, password })
           });
 
-          const data = await response.json() as { success: boolean; message: string };
+          const data = await response.json() as { 
+            success: boolean; 
+            message: string; 
+            requiresVerification?: boolean;
+            canResend?: boolean;
+            userId?: number;
+          };
 
           if (data.success) {
             showMessage(data.message, 'success');
+            // Store email for verification page
+            sessionStorage.setItem('registration_email', email);
             setTimeout(() => {
-              window.location.href = '/login';
-            }, 1500);
+              if (data.requiresVerification) {
+                window.location.href = '/verify-email';
+              } else {
+                window.location.href = '/login';
+              }
+            }, 2000);
           } else {
             showMessage(data.message, 'error');
+            
+            // If account exists but not verified, show resend option
+            if (data.canResend) {
+              const resendBtn = document.createElement('button');
+              resendBtn.textContent = 'Resend Verification Email';
+              resendBtn.className = 'btn';
+              resendBtn.style.marginTop = '1rem';
+              resendBtn.style.background = '#2196F3';
+              
+              resendBtn.onclick = async () => {
+                resendBtn.disabled = true;
+                resendBtn.textContent = 'Sending...';
+                
+                try {
+                  const resendResponse = await fetch('/api/auth/resend-verification', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                  });
+                  
+                  const resendData = await resendResponse.json() as { success: boolean; message: string };
+                  
+                  if (resendData.success) {
+                    showMessage('Verification email sent! Please check your inbox.', 'success');
+                    setTimeout(() => {
+                      window.location.href = '/verify-email';
+                    }, 1500);
+                  } else {
+                    showMessage(resendData.message, 'error');
+                    resendBtn.disabled = false;
+                    resendBtn.textContent = 'Resend Verification Email';
+                  }
+                } catch (error) {
+                  showMessage('Failed to resend email. Please try again.', 'error');
+                  resendBtn.disabled = false;
+                  resendBtn.textContent = 'Resend Verification Email';
+                }
+              };
+              
+              // Add resend button after the form
+              form.parentElement?.appendChild(resendBtn);
+            }
+            
             submitBtn.disabled = false;
             submitBtn.textContent = 'Register';
           }

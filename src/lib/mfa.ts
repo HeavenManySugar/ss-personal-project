@@ -94,7 +94,7 @@ export async function verifyTOTP(secret: string, code: string): Promise<boolean>
 export function generateQRCodeURL(
   secret: string,
   username: string,
-  issuer: string = 'SecureAuthSystem'
+  issuer: string = 'SS Personal Project'
 ): string {
   const label = encodeURIComponent(`${issuer}:${username}`);
   const params = new URLSearchParams({

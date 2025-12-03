@@ -1,0 +1,11 @@
+# .dev.vars 範例檔案
+# 複製此檔案為 .dev.vars 並填入你的實際值
+
+# Resend API Key (從 resend.com 取得)
+RESEND_API_KEY=re_your_api_key_here
+
+# 寄件者信箱 (開發階段可使用 onboarding@resend.dev)
+FROM_EMAIL=onboarding@resend.dev
+
+# 可選: Admin Token (用於清理 API)
+# ADMIN_TOKEN=your_secure_token_here

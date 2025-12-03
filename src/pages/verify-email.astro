@@ -1,0 +1,237 @@
+---
+/**
+ * Email Verification Page
+ */
+import BaseHead from '../components/BaseHead.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import { SITE_TITLE } from '../consts';
+
+// Check for token in URL
+const token = Astro.url.searchParams.get('token');
+const autoVerify = !!token;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <BaseHead title={`Email Verification - ${SITE_TITLE}`} description="Verify your email address" />
+    <style>
+      .auth-container {
+        max-width: 500px;
+        margin: 2rem auto;
+        padding: 2rem;
+        background: #f9f9f9;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+      .form-group { margin-bottom: 1.5rem; }
+      .form-group label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+      .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1.5rem;
+        text-align: center;
+        letter-spacing: 0.5rem;
+        box-sizing: border-box;
+      }
+      .btn {
+        width: 100%;
+        padding: 0.75rem;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+      }
+      .btn:hover { background: #45a049; }
+      .btn:disabled { background: #ccc; cursor: not-allowed; }
+      .message { padding: 1rem; margin-bottom: 1rem; border-radius: 4px; display: none; }
+      .message.error { background: #ffebee; color: #c62828; }
+      .message.success { background: #e8f5e9; color: #2e7d32; }
+      .message.show { display: block; }
+      .info { background: #e3f2fd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+      .loading { text-align: center; padding: 2rem; }
+      .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #4CAF50; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto; }
+      @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <Header />
+    <main>
+      <div class="auth-container">
+        <h1>✉️ Email Verification</h1>
+        
+        <div id="autoVerifySection" style="display: none;">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Verifying your email...</p>
+          </div>
+        </div>
+
+        <div id="manualVerifySection">
+          <div class="info">
+            <p>Please check your email and enter the 6-digit verification code.</p>
+          </div>
+          <div id="message" class="message"></div>
+          <form id="verifyForm" novalidate>
+            <div class="form-group">
+              <label for="code">Verification Code</label>
+              <input 
+                type="text" 
+                id="code" 
+                maxlength="6"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="000000"
+              />
+            </div>
+            <button type="submit" class="btn" id="submitBtn">Verify Email</button>
+          </form>
+          <p style="text-align: center; margin-top: 1rem;">
+            Didn't receive the email? <a href="#" id="resendLink">Resend</a>
+          </p>
+        </div>
+      </div>
+    </main>
+    <Footer />
+
+    <script define:vars={{ token, autoVerify }}>
+      const form = document.getElementById('verifyForm');
+      const messageDiv = document.getElementById('message');
+      const submitBtn = document.getElementById('submitBtn');
+      const codeInput = document.getElementById('code');
+      const autoVerifySection = document.getElementById('autoVerifySection');
+      const manualVerifySection = document.getElementById('manualVerifySection');
+      const resendLink = document.getElementById('resendLink');
+
+      function showMessage(text, type) {
+        messageDiv.textContent = text;
+        messageDiv.className = `message ${type} show`;
+      }
+
+      function validateInput() {
+        const code = codeInput.value.trim();
+        submitBtn.disabled = code.length !== 6 || !/^\d{6}$/.test(code);
+      }
+
+      // Auto-verify if token present
+      if (autoVerify && token) {
+        autoVerifySection.style.display = 'block';
+        manualVerifySection.style.display = 'none';
+        
+        fetch('/api/auth/verify-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            window.location.href = '/login?verified=true';
+          } else {
+            autoVerifySection.style.display = 'none';
+            manualVerifySection.style.display = 'block';
+            showMessage(data.message, 'error');
+          }
+        })
+        .catch(() => {
+          autoVerifySection.style.display = 'none';
+          manualVerifySection.style.display = 'block';
+          showMessage('Verification failed', 'error');
+        });
+      } else {
+        // Manual verification mode
+        validateInput();
+        
+        codeInput.addEventListener('input', () => {
+          codeInput.value = codeInput.value.replace(/\D/g, '');
+          validateInput();
+        });
+
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const code = codeInput.value.trim();
+
+          if (!/^\d{6}$/.test(code)) {
+            showMessage('Please enter a 6-digit code', 'error');
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Verifying...';
+
+          try {
+            const response = await fetch('/api/auth/verify-email', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              showMessage('Email verified successfully!', 'success');
+              setTimeout(() => {
+                window.location.href = '/login?verified=true';
+              }, 1500);
+            } else {
+              showMessage(data.message, 'error');
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Verify Email';
+              codeInput.value = '';
+              validateInput();
+            }
+          } catch (error) {
+            showMessage('Network error', 'error');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Verify Email';
+          }
+        });
+
+        resendLink.addEventListener('click', async (e) => {
+          e.preventDefault();
+          resendLink.style.pointerEvents = 'none';
+          resendLink.textContent = 'Sending...';
+          
+          try {
+            // Try to get email from sessionStorage or prompt user
+            const email = sessionStorage.getItem('registration_email') || prompt('Please enter your email address:');
+            
+            if (!email) {
+              showMessage('Email address required', 'error');
+              resendLink.style.pointerEvents = 'auto';
+              resendLink.textContent = 'Resend';
+              return;
+            }
+            
+            const response = await fetch('/api/auth/resend-verification', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+              showMessage('Verification email sent! Please check your inbox.', 'success');
+            } else {
+              showMessage(data.message, 'error');
+            }
+          } catch (error) {
+            showMessage('Failed to resend email. Please try again.', 'error');
+          } finally {
+            setTimeout(() => {
+              resendLink.style.pointerEvents = 'auto';
+              resendLink.textContent = 'Resend';
+            }, 2000);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
